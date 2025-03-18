@@ -6,5 +6,5 @@ export type Quiz = {
 export type QuizQuestion = {
     question: string;
     choices: string[];
-    answer: string;
+    correct_answer: string;
 };
