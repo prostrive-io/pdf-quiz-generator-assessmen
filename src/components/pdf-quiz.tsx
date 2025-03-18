@@ -5,6 +5,7 @@ import UploadPDF from './upload-pdf'
 import { Button } from './ui/button'
 import { extractTextFromPDF } from '@/lib/utils'
 import { Quiz, QuizQuestion } from '@/types'
+import { Loader2 } from 'lucide-react'
 
 const PDFQuiz = () => {
     const [pdfFile, setPdfFile] = useState<File | null>(null)
@@ -16,11 +17,9 @@ const PDFQuiz = () => {
     const [score, setScore] = useState<number | null>(null);
 
     const handleGenerateQuiz = async () => {
-        if(!pdfFile) {
-            alert("Please upload a PDF First.");
-            return;
-        }
-
+        if (!pdfFile) return setError("Please upload a PDF file.")
+        if (pdfFile.type !== "application/pdf") return setError("Invalid file type. Please upload a PDF file.")
+    
         setLoading(true);
         setError(null);
         setShowResults(false);
@@ -29,54 +28,66 @@ const PDFQuiz = () => {
 
         try {
             const extractedText = await extractTextFromPDF(pdfFile);
+            if (!extractedText.trim()) throw new Error("No readable text found in the PDF.")
 
             const response = await fetch('/api/generate-quiz', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ extractedText }),
             });
+
+            if (!response.ok) {
+                const { error } = await response.json()
+                throw new Error(error || "Quiz generation failed.")
+            }
         
             const data = await response.json();
-            if (response.ok) {
-                setQuiz(data.quiz);
-            } else {
-                setError(data.error || 'Failed to generate quiz.');
+
+            // Validate the API response before updating state
+            if (!data.quiz || !Array.isArray(data.quiz.questions)) {
+                throw new Error("Invalid quiz format received from API.");
             }
+
+            data.quiz.questions.forEach((q: QuizQuestion, i:number) => {
+                if (typeof q.question !== "string" || !Array.isArray(q.choices) || typeof q.answer !== "string") {
+                    throw new Error(`Invalid question format at index ${i}`);
+                }
+            });
+
+            setQuiz(data.quiz);
         } catch (err) {
-            console.error('Quiz Generation Error:', err);
-            setError('An error occurred while generating the quiz.');
+            setError(err instanceof Error ? err.message : "An unexpected error occurred.")
         } finally {
-            setLoading(false);
+            setLoading(false)
         }
       };
       
     const handleAnswerSelect = (questionIndex: number, choice: string) => {
-        setSelectedAnswers((prev) => ({
-            ...prev,
-            [questionIndex]: choice,
-        }));
-    };
+        setSelectedAnswers(prev => ({ ...prev, [questionIndex]: choice }))
+    }
 
     const handleSubmitQuiz = () => {
         if (!quiz) return;
 
-        let correctCount = 0;
-        quiz.questions.forEach((question, index) => {
-            if (selectedAnswers[index] === question.correct_answer) {
-                correctCount++;
-            }
-        });
+        const correctCount = quiz.questions.reduce((count, question, index) =>
+            count + (selectedAnswers[index] === question.answer ? 1 : 0), 0)
 
-        setScore(correctCount);
-        setShowResults(true);
+        setScore(correctCount)
+        setShowResults(true)
     };
 
     return (
-        <div className='p-6 space-y-12'>
+        <div className='max-sm:p-2 p-6 space-y-12'>
             <h1 className="text-4xl font-bold">PDF Quiz Generator</h1>
             <UploadPDF onFileSelect={setPdfFile}/>
             <Button onClick={handleGenerateQuiz} disabled={!pdfFile || loading}>
-                {loading ? "Generating quiz..." : "Generate Quiz"}
+                {loading ? (
+                    <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" /> Generating...
+                    </>
+                ) : (
+                    "Generate Quiz"
+                )}
             </Button>
 
         
@@ -90,23 +101,29 @@ const PDFQuiz = () => {
                             <div key={index} className="p-4 bg-white shadow rounded-lg">
                                 <p className="text-lg font-medium">{index + 1}. {question.question}</p>
                                 <div className="mt-2 space-y-2">
-                                    {question.choices.map((choice, choiceIndex) => (
+                                {Array.isArray(question.choices) ? (
+                                    question.choices.map((choice, choiceIndex) => (
                                         <label key={choiceIndex} className="block">
                                             <input
                                                 type="radio"
                                                 name={`question-${index}`}
                                                 value={choice}
+                                                disabled={showResults}
                                                 checked={selectedAnswers[index] === choice}
                                                 onChange={() => handleAnswerSelect(index, choice)}
                                                 className="mr-2"
                                             />
                                             {choice}
                                         </label>
-                                    ))}
+                                    ))
+                                ) : (
+                                    <p className="text-red-500">⚠️ Error: Invalid choices format</p>
+                                )}
+
                                 </div>
                                 {showResults && (
-                                    <p className={`mt-2 font-semibold ${selectedAnswers[index] === question.correct_answer ? 'text-green-600' : 'text-red-600'}`}>
-                                        Correct Answer: {question.correct_answer}
+                                    <p className={`mt-2 font-semibold ${selectedAnswers[index] === question.answer ? 'text-green-600' : 'text-red-600'}`}>
+                                        Correct Answer: {question.answer}
                                     </p>
                                 )}
                             </div>

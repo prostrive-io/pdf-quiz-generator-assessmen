@@ -14,7 +14,17 @@ export async function POST(req: Request) {
     }
 
   try {
-    const prompt = `Generate 5 multiple-choice questions from the following text: "${extractedText}". Each question should have 4 answer choices and indicate the correct answer. Format the response as a JSON object.`;
+    const prompt = `Generate 5 multiple-choice questions from the following text: "${extractedText}". 
+
+    Each question should be formatted as a JSON object with:
+    - "question": (string) The quiz question.
+    - "choices": (array of 4 strings) The multiple-choice options.
+    - "answer": (string) The correct answer.
+
+    Return the response as a valid JSON array inside an object: { "questions": [ ... ] }. 
+
+    DO NOT use "correct_answer". Always use "answer" as the key for the correct choice.
+    `;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
