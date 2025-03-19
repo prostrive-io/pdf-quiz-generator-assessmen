@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { QuizProvider } from "@/contexts/quiz-provider";
+import { QuizFormProvider } from "@/contexts/quiz-form-provider";
 
 
 export const metadata: Metadata = {
@@ -13,12 +15,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`antialiased`}
-      >
-        {children}
-      </body>
-    </html>
+    <QuizFormProvider>
+      <QuizProvider>
+        <html lang="en">
+          <body
+            className={`antialiased`}
+            >
+            {children}
+          </body>
+        </html>
+      </QuizProvider>
+    </QuizFormProvider>
   );
 }
